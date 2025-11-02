@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Goal Tracker (Local Storage)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // NOTE: This version uses localStorage for data persistence.
+        // Data is stored in your browser's history and will not sync across devices.
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#059669', // Emerald 600
+                        'secondary': '#1d4ed8', // Blue 700
+                        'hot': '#ef4444', // Red 500
+                        'engaged': '#f97316', // Orange 500
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); }
+        .status-pill { padding: 4px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+        .status-NewLead { background-color: #fef3c7; color: #b45309; } /* Amber */
+        .status-Contacted { background-color: #dbeafe; color: #1e40af; } /* Blue */
+        .status-AppointmentSet { background-color: #fee2e2; color: #dc2626; } /* Red */
+        .status-ClosedWon { background-color: #d1fae5; color: #065f46; } /* Emerald */
+        .status-ClosedLost { background-color: #e5e7eb; color: #4b5563; } /* Gray */
+        .btn-primary { background-color: #059669; color: white; transition: background-color 0.15s; }
+        .btn-primary:hover { background-color: #047857; }
+        .btn-log { background-color: #60a5fa; color: white; transition: background-color 0.15s; }
+        .btn-log:hover { background-color: #3b82f6; }
+
+        /* Custom scrollbar for table container */
+        .table-container::-webkit-scrollbar { width: 8px; }
+        .table-container::-webkit-scrollbar-thumb { background-color: #d1d5db; border-radius: 10px; }
+        .table-container::-webkit-scrollbar-track { background-color: #f3f4f6; }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div id="loader" class="fixed inset-0 bg-gray-100 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p class="ml-3 text-gray-700 font-medium">Loading Dashboard...</p>
+    </div>
+
+    <header class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800">Agent $80k Goal Tracker (Local Data)</h1>
+        <p class="text-gray-600">Plan for new agent to close 8 deals by January 5th. Data is saved locally.</p>
+    </header>
+
+    <!-- Goal and Metrics Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+
+        <!-- GOAL PROGRESS CARD -->
+        <div class="card p-6 lg:col-span-2">
+            <h2 class="text-xl font-semibold mb-3 text-gray-700">Goal Progress (Jan 5th Deadline)</h2>
+            <div class="flex justify-between items-end mb-2">
+                <span id="current-revenue" class="text-3xl font-extrabold text-primary">$0</span>
+                <span class="text-lg font-semibold text-gray-500">Target: $80,000</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div id="progress-bar" class="bg-primary h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <p id="progress-percent" class="text-right text-sm font-medium text-gray-600 mt-1">0% Complete</p>
+        </div>
+
+        <!-- KEY METRICS CARD: Expanded to 6 metrics -->
+        <div class="card p-6 lg:col-span-1">
+            <h2 class="text-xl font-semibold mb-3 text-gray-700">Key Metrics</h2>
+            <!-- 2x3 Grid for Metrics -->
+            <div class="grid grid-cols-3 gap-4 text-center">
+                
+                <!-- ROW 1: RESULTS -->
+                <div>
+                    <p id="deals-closed" class="text-xl font-bold text-primary">0</p>
+                    <p class="text-xs text-gray-500">Deals Closed</p>
+                </div>
+                <div>
+                    <p id="deals-needed" class="text-xl font-bold text-secondary">8</p>
+                    <p class="text-xs text-gray-500">Deals Needed</p>
+                </div>
+                <!-- Conversations -->
+                <div>
+                    <p id="total-conversations" class="text-xl font-bold text-engaged">0</p>
+                    <p class="text-xs text-gray-500">Conversations</p>
+                </div>
+
+                <!-- ROW 2: ACTIVITY FOCUS -->
+                <div>
+                    <p id="uncontacted-leads" class="text-xl font-bold text-hot">100</p>
+                    <p class="text-xs text-gray-500">Uncontacted</p>
+                </div>
+                <!-- Policy Reviews Requested Metric -->
+                <div>
+                    <p id="policy-reviews-requested" class="text-xl font-bold text-blue-700">0</p>
+                    <p class="text-xs text-gray-500">Policy Reviews</p>
+                </div>
+                <div>
+                    <p id="hot-leads" class="text-xl font-bold text-red-700">0</p>
+                    <p class="text-xs text-gray-500">Hot Leads (Appt.)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leads Management Table -->
+    <div class="card p-4 md:p-6">
+        <h2 class="text-2xl font-semibold mb-4 text-gray-700">The 100 Leads</h2>
+        <div class="table-container overflow-x-auto max-h-[60vh]">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50 sticky top-0">
+                    <tr>
+                        <!-- Clickable Header: Lead Name -->
+                        <th onclick="sortTable('name')" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 rounded-tl-lg">Lead <span id="sort-name"></span></th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                        <!-- Clickable Header: Status -->
+                        <th onclick="sortTable('status')" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Status <span id="sort-status"></span></th>
+                        <!-- Clickable Header: Last Contact -->
+                        <th onclick="sortTable('lastContact')" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Last Contact <span id="sort-lastContact">▼</span></th>
+                        <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="leads-table-body" class="bg-white divide-y divide-gray-200">
+                    <!-- Lead rows will be injected here -->
+                </tbody>
+            </table>
+        </div>
+        <div id="no-leads" class="hidden text-center py-10 text-gray-500">
+            All leads accounted for! Great work!
+        </div>
+    </div>
+
+    <!-- Modal for Logging Call/Updating Status -->
+    <div id="log-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center p-4 z-50">
+        <div class="card w-full max-w-2xl p-6 overflow-y-auto max-h-[90vh]">
+            <h3 class="text-2xl font-bold mb-4 text-gray-800">Update Lead Status & Details</h3>
+            <form id="log-form">
+                <input type="hidden" id="modal-lead-id">
+                
+                <!-- 1. Editable Name Field -->
+                <label for="modal-lead-name" class="block text-sm font-medium text-gray-700 mb-1">Lead Name (Editable)</label>
+                <input id="modal-lead-name" class="w-full p-2 mb-4 text-xl font-medium text-secondary border-b border-gray-300 focus:border-primary focus:outline-none" placeholder="Lead Name" />
+
+                <!-- 1. Editable Phone Field -->
+                <div class="mb-4">
+                    <label for="lead-phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number (Editable)</label>
+                    <input id="lead-phone" type="tel" class="w-full p-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" placeholder="(555) 555-5555" />
+                </div>
+                
+                <!-- 2. Conversation Starter (Policy Details, Calculator, Missing Figure) -->
+                <div class="bg-blue-50 p-4 rounded-md mb-6 border border-blue-200">
+                    <h4 class="text-base font-semibold text-blue-700 mb-3">
+                        Conversation Starter (Policy Details & Value Comparison)
+                    </h4>
+                    <div class="space-y-3">
+                        <!-- Carrier & Year -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="policy-carrier" class="block text-sm font-medium text-gray-700">Who is your policy with? (Carrier Name)</label>
+                                <input id="policy-carrier" class="w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., State Farm" />
+                            </div>
+                            <div>
+                                <label for="policy-year" class="block text-sm font-medium text-gray-700">When did you take it out? (Year)</label>
+                                <input id="policy-year" type="number" min="1900" max="2050" class="w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., 2018" />
+                            </div>
+                        </div>
+
+                        <!-- Premiums -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="monthly-premium" class="block text-sm font-medium text-gray-700">Monthly Premium ($)</label>
+                                <input id="monthly-premium" type="number" min="0" step="1" class="w-full p-2 border border-gray-300 rounded-md" placeholder="Amount" oninput="calculatePolicyValue()" />
+                            </div>
+                            <div>
+                                <label for="yearly-premium" class="block text-sm font-medium text-gray-700">Yearly Premium ($)</label>
+                                <input id="yearly-premium" type="number" min="0" step="1" class="w-full p-2 border border-gray-300 rounded-md" placeholder="Amount" oninput="calculatePolicyValue()" />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Calculator and Missing Figure -->
+                    <div class="bg-green-100 p-3 rounded-md mt-4 border border-green-300">
+                        <h5 class="text-sm font-semibold text-green-700 mb-2">
+                            Cash Value Projection (No Surrender Cost)
+                        </h5>
+                        
+                        <!-- Client Stated Cash Value -->
+                        <div class="mb-3">
+                            <label for="client-stated-cash-value" class="block text-xs font-medium text-gray-600 mb-1">Client Stated Cash Value ($)</label>
+                            <input id="client-stated-cash-value" type="number" min="0" step="100" class="w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., 5000" oninput="calculatePolicyValue()" />
+                        </div>
+                        
+                        <label for="calculator-years" class="block text-xs font-medium text-gray-600 mb-1">Projected Years of Growth</label>
+                        <input id="calculator-years" type="number" min="1" max="50" value="10" class="w-full p-2 border border-gray-300 rounded-md mb-3" placeholder="Number of Years" oninput="calculatePolicyValue()" />
+
+                        <!-- Results -->
+                        <div class="space-y-2 border-t border-green-300 pt-2 mt-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-base font-semibold text-gray-700">Expected Cash Value:</span>
+                                <span id="expected-cash-value" class="text-xl font-bold text-primary">$0</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-base font-semibold text-gray-700">Missing Figure: (Expected - Stated)</span>
+                                <span id="missing-figure" class="text-xl font-bold text-hot text-red-600">$0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Call Outcome to distinguish actual contact -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Call Outcome</label>
+                    <div class="flex space-x-6">
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="call-outcome" value="Live Conversation" checked class="form-radio text-primary h-4 w-4 border-gray-300 focus:ring-primary">
+                            <span class="ml-2 text-gray-700 font-medium">Live Conversation</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="call-outcome" value="Attempt Only" class="form-radio text-engaged h-4 w-4 border-gray-300 focus:ring-engaged">
+                            <span class="ml-2 text-gray-700">Attempt (VM/No Answer)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 4. Policy Review Requested Checkbox -->
+                <div class="mb-3 flex items-center p-3 border border-blue-200 rounded-md bg-blue-50">
+                    <input type="checkbox" id="policy-review-requested" class="h-5 w-5 text-secondary rounded border-gray-300 focus:ring-secondary">
+                    <label for="policy-review-requested" class="ml-2 block text-sm font-semibold text-secondary">
+                        Policy Review Requested? (Key step to conversion)
+                    </label>
+                </div>
+                
+                <!-- 5. Policy Data & Projection Confirmation Checkbox -->
+                <div class="mb-6 flex items-center p-3 border border-green-200 rounded-md bg-green-50">
+                    <input type="checkbox" id="policy-projection-confirmed" class="h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary">
+                    <label for="policy-projection-confirmed" class="ml-2 block text-sm font-semibold text-primary">
+                        Policy Data & Projection Confirmed (Check when all fields above are filled)
+                    </label>
+                </div>
+
+                <!-- New Status (Kept here for flow) -->
+                 <div class="mb-4">
+                    <label for="new-status" class="block text-sm font-medium text-gray-700 mb-1">New Status</label>
+                    <select id="new-status" class="w-full p-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary">
+                        <option value="New Lead">New Lead</option>
+                        <option value="Contacted">Contacted (Engaged)</option>
+                        <option value="Appointment Set">Appointment Set (Hot)</option>
+                        <option value="Closed Won">Closed Won ($10k Revenue)</option>
+                        <option value="Closed Lost">Closed Lost</option>
+                    </select>
+                </div>
+
+                <!-- 6. Demographic Data Fields (Now includes Birth Year) -->
+                <div class="bg-gray-50 p-4 rounded-md mb-6 border border-gray-200">
+                    <h4 class="text-base font-semibold text-gray-700 mb-2">Demographics (Intel)</h4>
+                    <div class="grid grid-cols-4 gap-3">
+                        <!-- Lead Age/Year -->
+                        <div>
+                            <label for="lead-age" class="block text-xs font-medium text-gray-500 mb-1">Lead Age</label>
+                            <input id="lead-age" type="number" min="18" max="120" class="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-primary focus:border-primary" placeholder="Age" oninput="updateBirthYearFromAge('lead')" />
+                        </div>
+                         <div>
+                            <label for="lead-birth-year" class="block text-xs font-medium text-gray-500 mb-1">Lead Birth Year</label>
+                            <input id="lead-birth-year" type="number" min="1900" max="${new Date().getFullYear()}" class="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-primary focus:border-primary" placeholder="Year" oninput="updateAgeFromBirthYear('lead')" />
+                        </div>
+                        
+                        <!-- Spouse Age/Year -->
+                        <div>
+                            <label for="spouse-age" class="block text-xs font-medium text-gray-500 mb-1">Spouse Age</label>
+                            <input id="spouse-age" type="number" min="18" max="120" class="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-primary focus:border-primary" placeholder="Age" oninput="updateBirthYearFromAge('spouse')" />
+                        </div>
+                         <div>
+                            <label for="spouse-birth-year" class="block text-xs font-medium text-gray-500 mb-1">Spouse Birth Year</label>
+                            <input id="spouse-birth-year" type="number" min="1900" max="${new Date().getFullYear()}" class="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-primary focus:border-primary" placeholder="Year" oninput="updateAgeFromBirthYear('spouse')" />
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label for="num-kids" class="block text-xs font-medium text-gray-500 mb-1"># of Kids</label>
+                        <input id="num-kids" type="number" min="0" max="20" class="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-primary focus:border-primary" placeholder="Count" />
+                    </div>
+                </div>
+                
+                <!-- 7. Call Notes -->
+                <div class="mb-6">
+                    <label for="call-notes" class="block text-sm font-medium text-gray-700 mb-1">New Call Notes / Outcome</label>
+                    <textarea id="call-notes" rows="3" class="w-full p-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" placeholder="Start your new conversation entry here."></textarea>
+                </div>
+                
+                <!-- Conversation History Display Container (Stays at bottom) -->
+                <div id="contact-history-container" class="mb-6 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50 shadow-inner">
+                    <h4 class="text-sm font-semibold text-gray-600 mb-2 border-b pb-1 sticky top-0 bg-gray-50 z-10">Conversation History (Most Recent First)</h4>
+                    <div id="contact-history-display" class="space-y-3">
+                        <!-- History entries will be injected here by openModal -->
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors">Cancel</button>
+                    <button type="submit" class="btn-primary px-4 py-2 rounded-md font-semibold">Save Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Local Storage Data Logic -->
+    <script>
+        // --- GLOBAL CONFIGURATION ---
+        const TARGET_REVENUE = 80000;
+        const AVERAGE_DEAL_VALUE = 10000; // Assumed commission per closed deal
+        const INITIAL_LEAD_COUNT = 100;
+        
+        let allLeads = []; // Global store for leads
+        const CURRENT_YEAR = new Date().getFullYear();
+        
+        // --- SORT CONFIGURATION (Default: Last Contacted, Descending) ---
+        let sortConfig = { key: 'lastContact', direction: 'desc' };
+
+        // --- LOCAL STORAGE DATA ACCESS ---
+
+        function getLeads() {
+            const leadsJson = localStorage.getItem('agentLeads');
+            return leadsJson ? JSON.parse(leadsJson) : [];
+        }
+
+        function saveLeads(leads) {
+            localStorage.setItem('agentLeads', JSON.stringify(leads));
+        }
+
+        // --- DATA INITIALIZATION ---
+
+        function checkAndInitializeLeads() {
+            let leads = getLeads();
+            if (leads.length === 0) {
+                console.log("Leads not found in localStorage. Initializing 100 dummy leads.");
+                for (let i = 1; i <= INITIAL_LEAD_COUNT; i++) {
+                    const leadData = {
+                        id: `lead_${i}`,
+                        name: `Lead Prospect ${i}`,
+                        phone: `(555) ${1000 + i}-${2000 + i}`, // Sample phone number
+                        status: 'New Lead',
+                        value: AVERAGE_DEAL_VALUE,
+                        lastContact: null,
+                        contactHistory: [],
+                        
+                        // Demographic fields
+                        leadAge: null, 
+                        leadBirthYear: null,
+                        spouseAge: null,
+                        spouseBirthYear: null,
+                        numKids: null,
+                        
+                        // Policy Review Tracking Fields
+                        policyReviewRequested: false, 
+                        policyProjectionConfirmed: false,
+                        
+                        // Policy Detail Fields
+                        policyCarrier: '',
+                        policyYear: null,
+                        monthlyPremium: null,
+                        yearlyPremium: null,
+                        clientStatedCashValue: null,
+                        calculatorYears: 10,
+                        expectedCashValue: 0,
+                        missingFigure: 0,
+                        
+                        createdAt: new Date().toISOString(),
+                    };
+                    leads.push(leadData);
+                }
+                saveLeads(leads);
+            }
+            // Ensure leads loaded from storage have the new fields 
+            return leads.map(lead => ({
+                ...lead,
+                policyReviewRequested: lead.policyReviewRequested || false,
+                policyProjectionConfirmed: lead.policyProjectionConfirmed || false,
+                policyCarrier: lead.policyCarrier || '',
+                policyYear: lead.policyYear || null,
+                monthlyPremium: lead.monthlyPremium || null,
+                yearlyPremium: lead.yearlyPremium || null,
+                clientStatedCashValue: lead.clientStatedCashValue || null,
+                calculatorYears: lead.calculatorYears || 10,
+                expectedCashValue: lead.expectedCashValue || 0,
+                missingFigure: lead.missingFigure || 0,
+                leadBirthYear: lead.leadBirthYear || null,
+                spouseBirthYear: lead.spouseBirthYear || null,
+            }));
+        }
+
+        // --- MAIN RENDER LOOP ---
+
+        function setupDashboard() {
+            document.getElementById('loader').classList.remove('hidden');
+            allLeads = checkAndInitializeLeads();
+            renderData(allLeads);
+            document.getElementById('loader').classList.add('hidden');
+        }
+
+        // --- RENDERING FUNCTIONS ---
+        
+        function formatCurrency(amount) {
+            // Use Math.round to handle floating point issues and display clean currency
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(Math.round(amount));
+        }
+
+        function renderData(leads) {
+            let totalRevenue = 0;
+            let totalConversations = 0; 
+            let dealsClosed = 0;
+            let uncontactedLeads = 0;
+            let policyReviewsRequested = 0; 
+            let hotLeads = 0;
+            
+            leads.forEach((lead) => {
+                // Count Conversations 
+                totalConversations += lead.contactHistory.filter(entry => entry.contactType === 'Live Conversation').length;
+                
+                // Count Policy Reviews Requested
+                if (lead.policyReviewRequested) {
+                    policyReviewsRequested++;
+                }
+
+                // Determine Status-based Metrics
+                if (lead.status === 'Closed Won') {
+                    totalRevenue += lead.value || 0;
+                    dealsClosed++;
+                } else if (lead.status === 'Closed Lost') {
+                    // Do nothing for Closed Lost, it's inactive
+                } else {
+                    // Leads still being actively pursued
+                    
+                    // Check for Uncontacted
+                    if (lead.contactHistory.length === 0) {
+                        uncontactedLeads++;
+                    }
+
+                    // Check for Hot Leads
+                    if (lead.status === 'Appointment Set') {
+                        hotLeads++;
+                    }
+                }
+            });
+
+            // Fallback for uncontacted leads count 
+            if (uncontactedLeads === 0 && leads.length === INITIAL_LEAD_COUNT && dealsClosed === 0) {
+                 if (leads.every(l => l.contactHistory.length === 0)) {
+                    uncontactedLeads = INITIAL_LEAD_COUNT;
+                 }
+            }
+
+
+            // Render table
+            renderLeads(leads);
+            // Update the KPI cards
+            updateMetrics(totalRevenue, dealsClosed, totalConversations, uncontactedLeads, policyReviewsRequested, hotLeads); 
+        }
+
+        // --- SORTING FUNCTIONALITY ---
+
+        window.sortTable = (key) => {
+            if (sortConfig.key === key) {
+                sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortConfig.key = key;
+                sortConfig.direction = (key === 'lastContact' || key === 'status') ? 'desc' : 'asc'; 
+            }
+            renderLeads(allLeads);
+        }
+
+        function renderLeads(leads) {
+            const tbody = document.getElementById('leads-table-body');
+            tbody.innerHTML = ''; 
+
+            if (leads.length === 0) {
+                document.getElementById('no-leads').classList.remove('hidden');
+                return;
+            } else {
+                 document.getElementById('no-leads').classList.add('hidden');
+            }
+
+            // Custom sort logic based on sortConfig
+            const sortedLeads = leads.slice().sort((a, b) => {
+                const key = sortConfig.key;
+                const dir = sortConfig.direction === 'asc' ? 1 : -1;
+                let aValue = a[key];
+                let bValue = b[key];
+                
+                // 1. Custom logic for Last Contact (Date/Time)
+                if (key === 'lastContact') {
+                    const aDate = aValue ? new Date(aValue).getTime() : 0; // 0 for 'Never'
+                    const bDate = bValue ? new Date(bValue).getTime() : 0; // 0 for 'Never'
+                    return (aDate - bDate) * dir;
+                }
+                
+                // 2. Custom logic for Status (Priority/Workflow)
+                if (key === 'status') {
+                    const statusOrder = {
+                        'New Lead': 1,
+                        'Contacted': 2,
+                        'Appointment Set': 3,
+                        'Closed Lost': 4,
+                        'Closed Won': 5,
+                    };
+                    aValue = statusOrder[aValue] || 99;
+                    bValue = statusOrder[bValue] || 99;
+                    // Note: Status is sorted by priority (1-5), so direction 'asc' means ascending priority.
+                    return (aValue - bValue) * dir;
+                }
+
+                // 3. Default comparison (Lead Name)
+                if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return aValue.localeCompare(bValue) * dir;
+                }
+
+                // Fallback for numeric/other comparison
+                if (aValue < bValue) {
+                    return -1 * dir;
+                }
+                if (aValue > bValue) {
+                    return 1 * dir;
+                }
+                return 0;
+            });
+            
+            // Update sort indicators (arrows)
+            document.querySelectorAll('[id^="sort-"]').forEach(span => span.textContent = '');
+            const arrow = sortConfig.direction === 'asc' ? ' ▲' : ' ▼';
+            const sortIndicator = document.getElementById(`sort-${sortConfig.key}`);
+            if (sortIndicator) {
+                sortIndicator.textContent = arrow;
+            }
+
+
+            sortedLeads.forEach(lead => {
+                const lastContact = lead.lastContact;
+                const contactDisplay = (lastContact) 
+                    ? new Date(lastContact).toLocaleDateString()
+                    : 'Never';
+
+                const row = `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${lead.name}</td>
+                        <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500">${lead.phone}</td>
+                        <td class="px-3 py-3 whitespace-nowrap">
+                            <span class="status-pill status-${lead.status.replace(/\s/g, '')}">
+                                ${lead.status}
+                            </span>
+                        </td>
+                        <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500">${contactDisplay}</td>
+                        <td class="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="openModal('${lead.id}')" class="btn-log text-xs px-3 py-1 rounded-md">
+                                Log Call / Update
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        function updateMetrics(revenue, closed, totalConversations, uncontactedLeads, policyReviewsRequested, hotLeads) {
+            const revenuePct = Math.min(100, (revenue / TARGET_REVENUE) * 100);
+            const dealsNeeded = Math.ceil((TARGET_REVENUE - revenue) / AVERAGE_DEAL_VALUE);
+
+            document.getElementById('current-revenue').textContent = formatCurrency(revenue);
+            document.getElementById('progress-bar').style.width = `${revenuePct}%`;
+            document.getElementById('progress-percent').textContent = `${revenuePct.toFixed(1)}% Complete`;
+
+            document.getElementById('deals-closed').textContent = closed;
+            document.getElementById('deals-needed').textContent = Math.max(0, dealsNeeded);
+            
+            document.getElementById('total-conversations').textContent = totalConversations; 
+            
+            // Updated Metrics
+            document.getElementById('uncontacted-leads').textContent = uncontactedLeads;
+            document.getElementById('policy-reviews-requested').textContent = policyReviewsRequested;
+            document.getElementById('hot-leads').textContent = hotLeads;
+        }
+
+        // --- CALCULATOR LOGIC (UPDATED) ---
+
+        window.calculatePolicyValue = () => {
+            const monthly = parseFloat(document.getElementById('monthly-premium').value) || 0;
+            const yearly = parseFloat(document.getElementById('yearly-premium').value) || 0;
+            const years = parseFloat(document.getElementById('calculator-years').value) || 0;
+            const statedCashValue = parseFloat(document.getElementById('client-stated-cash-value').value) || 0;
+
+            let totalAnnualPremium = 0;
+
+            if (monthly > 0) {
+                totalAnnualPremium = monthly * 12;
+            } else if (yearly > 0) {
+                totalAnnualPremium = yearly;
+            }
+
+            const expectedCashValue = totalAnnualPremium * years;
+            const missingFigure = expectedCashValue - statedCashValue;
+            
+            document.getElementById('expected-cash-value').textContent = formatCurrency(expectedCashValue);
+            document.getElementById('missing-figure').textContent = formatCurrency(missingFigure);
+
+            // Conditional styling for missing figure
+            document.getElementById('missing-figure').classList.toggle('text-red-600', missingFigure > 0);
+            document.getElementById('missing-figure').classList.toggle('text-primary', missingFigure <= 0);
+            
+            return { expectedCashValue, missingFigure };
+        }
+
+        // --- DEMOGRAPHIC LOGIC (NEW) ---
+
+        window.updateAgeFromBirthYear = (person) => {
+            const yearInput = document.getElementById(`${person}-birth-year`);
+            const ageInput = document.getElementById(`${person}-age`);
+            const year = parseInt(yearInput.value);
+
+            if (year && year >= 1900 && year <= CURRENT_YEAR) {
+                const calculatedAge = CURRENT_YEAR - year;
+                ageInput.value = calculatedAge;
+            } else if (yearInput.value === '') {
+                 ageInput.value = ''; // Clear age if year is cleared
+            }
+        };
+
+        window.updateBirthYearFromAge = (person) => {
+            const ageInput = document.getElementById(`${person}-age`);
+            const yearInput = document.getElementById(`${person}-birth-year`);
+            const age = parseInt(ageInput.value);
+
+            if (age && age >= 18 && age <= 120) {
+                const calculatedYear = CURRENT_YEAR - age;
+                yearInput.value = calculatedYear;
+            } else if (ageInput.value === '') {
+                yearInput.value = ''; // Clear year if age is cleared
+            }
+        };
+
+
+        // --- MODAL AND INTERACTION LOGIC ---
+        
+        window.openModal = (leadId) => {
+            const lead = allLeads.find(l => l.id === leadId);
+            if (!lead) {
+                console.error("Lead not found:", leadId);
+                return;
+            }
+
+            document.getElementById('modal-lead-id').value = leadId;
+            
+            // 1. Set editable fields (Name, Phone)
+            document.getElementById('modal-lead-name').value = lead.name; 
+            document.getElementById('lead-phone').value = lead.phone || ''; 
+            
+            // 2. Set Policy Details
+            document.getElementById('policy-carrier').value = lead.policyCarrier || '';
+            document.getElementById('policy-year').value = lead.policyYear || '';
+            document.getElementById('monthly-premium').value = lead.monthlyPremium || '';
+            document.getElementById('yearly-premium').value = lead.yearlyPremium || '';
+            document.getElementById('client-stated-cash-value').value = lead.clientStatedCashValue || '';
+            document.getElementById('calculator-years').value = lead.calculatorYears || 10;
+            
+            // 3. Set Checkbox states
+            document.getElementById('policy-review-requested').checked = lead.policyReviewRequested || false;
+            document.getElementById('policy-projection-confirmed').checked = lead.policyProjectionConfirmed || false;
+            
+            // 4. Calculate initial cash value on load
+            calculatePolicyValue();
+            
+            // 5. Set Demographic fields
+            document.getElementById('lead-age').value = lead.leadAge || ''; 
+            document.getElementById('lead-birth-year').value = lead.leadBirthYear || ''; 
+            document.getElementById('spouse-age').value = lead.spouseAge || ''; 
+            document.getElementById('spouse-birth-year').value = lead.spouseBirthYear || ''; 
+            document.getElementById('num-kids').value = lead.numKids || ''; 
+            
+            document.getElementById('new-status').value = lead.status;
+            document.getElementById('call-notes').value = '';
+            document.querySelector('input[name="call-outcome"][value="Live Conversation"]').checked = true;
+
+            // --- History Rendering ---
+            const historyDisplay = document.getElementById('contact-history-display');
+            historyDisplay.innerHTML = ''; 
+
+            if (lead.contactHistory && lead.contactHistory.length > 0) {
+                // Reverse order to show latest interactions first
+                lead.contactHistory.slice().reverse().forEach(entry => {
+                    const date = new Date(entry.date).toLocaleString();
+                    const typeColor = entry.contactType === 'Live Conversation' ? 'text-primary' : 'text-engaged';
+                    
+                    const historyItem = `
+                        <div class="border-b border-gray-100 pb-2 mb-2">
+                            <p class="text-xs font-bold flex justify-between">
+                                <span class="${typeColor}">${entry.contactType}</span>
+                                <span class="text-gray-400 font-normal">${date}</span>
+                            </p>
+                            <p class="text-sm text-gray-700 mt-1 whitespace-pre-wrap">${entry.notes}</p>
+                        </div>
+                    `;
+                    historyDisplay.insertAdjacentHTML('beforeend', historyItem);
+                });
+            } else {
+                historyDisplay.innerHTML = '<p class="text-sm text-gray-500 italic">No previous contact history recorded.</p>';
+            }
+            // --- End History Rendering ---
+
+            document.getElementById('log-modal').classList.remove('hidden');
+            document.getElementById('log-modal').classList.add('flex');
+        };
+
+        window.closeModal = () => {
+            document.getElementById('log-modal').classList.add('hidden');
+            document.getElementById('log-modal').classList.remove('flex');
+        };
+
+        function handleLogSubmit(event) {
+            event.preventDefault();
+            const leadId = document.getElementById('modal-lead-id').value;
+            
+            // Get editable fields
+            const newName = document.getElementById('modal-lead-name').value.trim();
+            const newPhone = document.getElementById('lead-phone').value.trim();
+            
+            // Get Demographic fields
+            const newLeadAge = parseInt(document.getElementById('lead-age').value) || null;
+            const newLeadBirthYear = parseInt(document.getElementById('lead-birth-year').value) || null;
+            const newSpouseAge = parseInt(document.getElementById('spouse-age').value) || null;
+            const newSpouseBirthYear = parseInt(document.getElementById('spouse-birth-year').value) || null;
+            const newNumKids = parseInt(document.getElementById('num-kids').value) || null;
+            
+            // Get Policy Details
+            const newPolicyCarrier = document.getElementById('policy-carrier').value.trim();
+            const newPolicyYear = parseInt(document.getElementById('policy-year').value) || null;
+            const newMonthlyPremium = parseFloat(document.getElementById('monthly-premium').value) || null;
+            const newYearlyPremium = parseFloat(document.getElementById('yearly-premium').value) || null;
+            const newClientStatedCashValue = parseFloat(document.getElementById('client-stated-cash-value').value) || null;
+            const newCalculatorYears = parseInt(document.getElementById('calculator-years').value) || 10;
+            const { expectedCashValue, missingFigure } = calculatePolicyValue(); 
+
+            // Get Checkbox states
+            const reviewRequested = document.getElementById('policy-review-requested').checked;
+            const projectionConfirmed = document.getElementById('policy-projection-confirmed').checked;
+
+            const newStatus = document.getElementById('new-status').value;
+            const notes = document.getElementById('call-notes').value.trim();
+            const callOutcome = document.querySelector('input[name="call-outcome"]:checked').value; 
+
+            if (notes === '') {
+                // Use a simple prompt for missing notes
+                alert('Please enter some notes for this contact!');
+                return;
+            }
+
+            // Find and update lead in global array
+            const leadIndex = allLeads.findIndex(l => l.id === leadId);
+            if (leadIndex === -1) {
+                console.error("Lead not found during submission.");
+                return;
+            }
+            
+            try {
+                const currentLead = allLeads[leadIndex];
+
+                // 1. Update all profile fields
+                currentLead.name = newName;
+                currentLead.phone = newPhone;
+                
+                // Demographic update
+                currentLead.leadAge = newLeadAge;
+                currentLead.leadBirthYear = newLeadBirthYear;
+                currentLead.spouseAge = newSpouseAge;
+                currentLead.spouseBirthYear = newSpouseBirthYear;
+                currentLead.numKids = newNumKids;
+                
+                // Policy details update
+                currentLead.policyCarrier = newPolicyCarrier;
+                currentLead.policyYear = newPolicyYear;
+                currentLead.monthlyPremium = newMonthlyPremium;
+                currentLead.yearlyPremium = newYearlyPremium;
+                currentLead.clientStatedCashValue = newClientStatedCashValue;
+                currentLead.calculatorYears = newCalculatorYears;
+                currentLead.expectedCashValue = expectedCashValue;
+                currentLead.missingFigure = missingFigure;
+
+                // Status updates
+                currentLead.policyReviewRequested = reviewRequested; 
+                currentLead.policyProjectionConfirmed = projectionConfirmed;
+                currentLead.status = newStatus;
+                currentLead.lastContact = new Date().toISOString();
+
+                // 2. Add contact history entry
+                const historyEntry = {
+                    date: currentLead.lastContact,
+                    type: 'Call',
+                    contactType: callOutcome, 
+                    notes: notes,
+                    policyReviewAction: reviewRequested ? "Review Requested" : "None",
+                    projectionStatus: projectionConfirmed ? "Projection Confirmed" : "Projection Not Confirmed",
+                };
+                
+                // Ensure contactHistory is an array before pushing
+                if (!Array.isArray(currentLead.contactHistory)) {
+                    currentLead.contactHistory = [];
+                }
+                currentLead.contactHistory.push(historyEntry);
+                
+                // 3. Save the updated array back to localStorage
+                saveLeads(allLeads);
+                
+                // 4. Re-render the dashboard
+                renderData(allLeads);
+
+                console.log(`Lead ${leadId} updated successfully in localStorage.`);
+                closeModal();
+
+            } catch (error) {
+                console.error("Failed to update lead in localStorage:", error);
+                alert('Failed to update lead. Check console for details.'); 
+            }
+        }
+        
+        // Attach the submit handler to the form
+        document.getElementById('log-form').addEventListener('submit', handleLogSubmit);
+
+        // --- START APPLICATION ---
+        // Run the setup function when the page loads
+        window.onload = setupDashboard;
+
+    </script>
+</body>
+</html>
