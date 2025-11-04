@@ -38,11 +38,53 @@
         .btn-primary:hover { background-color: #047857; }
         .btn-log { background-color: #60a5fa; color: white; transition: background-color 0.15s; }
         .btn-log:hover { background-color: #3b82f6; }
+        .tab-button {
+            padding: 0.5rem 1rem;
+            border-bottom: 3px solid transparent;
+            font-weight: 600;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .tab-button.active {
+            border-color: #059669; /* primary color */
+            color: #059669;
+        }
 
         /* Custom scrollbar for table container */
         .table-container::-webkit-scrollbar { width: 8px; }
         .table-container::-webkit-scrollbar-thumb { background-color: #d1d5db; border-radius: 10px; }
         .table-container::-webkit-scrollbar-track { background-color: #f3f4f6; }
+        
+        /* Timeline specific styles */
+        .timeline-item {
+            position: relative;
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 6px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #059669; /* primary */
+            border: 2px solid white;
+            z-index: 10;
+        }
+        .timeline-item::after {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 20px;
+            bottom: -5px;
+            width: 2px;
+            background-color: #e5e7eb; /* light gray */
+        }
+        .timeline-item:last-child::after {
+            display: none;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8 min-h-screen">
@@ -52,16 +94,108 @@
         <p class="ml-3 text-gray-700 font-medium">Loading Dashboard...</p>
     </div>
 
-    <header class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-800">Agent $80k Goal Tracker (Local Data)</h1>
-        <p class="text-gray-600">Plan for new agent to close 8 deals by January 5th. Data is saved locally.</p>
+    <!-- The main header content is now in the Tracking tab -->
+    <header class="mb-4">
+        <h1 class="text-3xl font-bold text-gray-800">Leads and Activity Tracker</h1>
+        <p class="text-gray-600">Focus on the 100 leads. Switch to the 'Tracking Plan' tab for goals and strategy.</p>
     </header>
 
-    <!-- Goal and Metrics Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- TAB NAVIGATION -->
+    <div class="flex border-b border-gray-200 mb-6">
+        <div id="tab-leads" class="tab-button active" onclick="switchTab('leads')">Leads Management</div>
+        <div id="tab-tracking" class="tab-button" onclick="switchTab('tracking')">Tracking Plan</div>
+    </div>
+    
+    <!-- TAB CONTENT: LEADS -->
+    <div id="content-leads">
+        
+        <!-- Key Metrics Section: Resized to full width -->
+        <div class="grid grid-cols-1 gap-6 mb-8">
 
-        <!-- GOAL PROGRESS CARD -->
-        <div class="card p-6 lg:col-span-2">
+            <!-- KEY METRICS CARD: Full Width (lg:col-span-3) and adjusted grid for horizontal flow -->
+            <div class="card p-6 lg:col-span-3">
+                <h2 class="text-xl font-semibold mb-3 text-gray-700">Key Activity Metrics</h2>
+                <!-- Adjusted grid to 6 columns on large screens for thin, long layout -->
+                <div class="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
+                    
+                    <!-- 1. Uncontacted Leads (Activity Focus) -->
+                    <div>
+                        <p id="uncontacted-leads" class="text-xl font-bold text-hot">100</p>
+                        <p class="text-xs text-gray-500">Uncontacted</p>
+                    </div>
+
+                    <!-- 2. Conversations (Activity) -->
+                    <div>
+                        <p id="total-conversations" class="text-xl font-bold text-engaged">0</p>
+                        <p class="text-xs text-gray-500">Conversations</p>
+                    </div>
+
+                    <!-- 3. Policy Reviews Requested Metric (Pipeline Conversion) -->
+                    <div>
+                        <p id="policy-reviews-requested" class="text-xl font-bold text-blue-700">0</p>
+                        <p class="text-xs text-gray-500">Policy Reviews</p>
+                    </div>
+                    
+                    <!-- 4. Hot Leads (Appt.) (Pipeline Focus) -->
+                    <div>
+                        <p id="hot-leads" class="text-xl font-bold text-red-700">0</p>
+                        <p class="text-xs text-gray-500">Hot Leads (Appt.)</p>
+                    </div>
+                    
+                    <!-- 5. Deals Needed (Result) -->
+                    <div>
+                        <p id="deals-needed" class="text-xl font-bold text-secondary">8</p>
+                        <p class="text-xs text-gray-500">Deals Needed</p>
+                    </div>
+                    
+                    <!-- 6. Deals Closed (Result) -->
+                    <div>
+                        <p id="deals-closed" class="text-xl font-bold text-primary">0</p>
+                        <p class="text-xs text-gray-500">Deals Closed</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leads Management Table (Now takes up more screen space) -->
+        <div class="card p-4 md:p-6">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">The 100 Leads</h2>
+            <div class="table-container overflow-x-auto max-h-[60vh]">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <!-- Clickable Header: Lead Name -->
+                            <th onclick="sortTable('name')" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 rounded-tl-lg">Lead <span id="sort-name"></span></th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                            <!-- Clickable Header: Status -->
+                            <th onclick="sortTable('status')" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Status <span id="sort-status"></span></th>
+                            <!-- Clickable Header: Last Contact -->
+                            <th onclick="sortTable('lastContact')" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Last Contact <span id="sort-lastContact">▼</span></th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leads-table-body" class="bg-white divide-y divide-gray-200">
+                        <!-- Lead rows will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="no-leads" class="hidden text-center py-10 text-gray-500">
+                All leads accounted for! Great work!
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB CONTENT: TRACKING PLAN -->
+    <div id="content-tracking" class="hidden">
+        
+        <!-- Moved Header Content -->
+        <header class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Agent $80k Goal Tracker (Local Data)</h1>
+            <p class="text-gray-600">Plan for new agent to close 8 deals by January 5th. Data is saved locally.</p>
+        </header>
+
+        <!-- Moved Goal Progress Card -->
+        <div class="card p-6 mb-8">
             <h2 class="text-xl font-semibold mb-3 text-gray-700">Goal Progress (Jan 5th Deadline)</h2>
             <div class="flex justify-between items-end mb-2">
                 <span id="current-revenue" class="text-3xl font-extrabold text-primary">$0</span>
@@ -73,71 +207,77 @@
             <p id="progress-percent" class="text-right text-sm font-medium text-gray-600 mt-1">0% Complete</p>
         </div>
 
-        <!-- KEY METRICS CARD: Expanded to 6 metrics -->
-        <div class="card p-6 lg:col-span-1">
-            <h2 class="text-xl font-semibold mb-3 text-gray-700">Key Metrics</h2>
-            <!-- 2x3 Grid for Metrics -->
-            <div class="grid grid-cols-3 gap-4 text-center">
-                
-                <!-- ROW 1: RESULTS -->
-                <div>
-                    <p id="deals-closed" class="text-xl font-bold text-primary">0</p>
-                    <p class="text-xs text-gray-500">Deals Closed</p>
-                </div>
-                <div>
-                    <p id="deals-needed" class="text-xl font-bold text-secondary">8</p>
-                    <p class="text-xs text-gray-500">Deals Needed</p>
-                </div>
-                <!-- Conversations -->
-                <div>
-                    <p id="total-conversations" class="text-xl font-bold text-engaged">0</p>
-                    <p class="text-xs text-gray-500">Conversations</p>
+
+        <div class="card p-6">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-700 border-b pb-2">8-Week Revenue Action Plan ($80k Goal)</h2>
+            
+            <p class="text-sm text-gray-600 mb-6">This aggressive plan targets <strong>56 Policy Reviews/Appointments</strong> to achieve a minimum of <strong>10 Closed Deals</strong> ($100k projected revenue) by January. The focus is on front-loading activity.</p>
+
+            <div class="timeline-container relative pl-4">
+
+                <!-- Week 1-2: SATURATION & INITIAL REVIEWS -->
+                <div class="timeline-item">
+                    <h3 class="font-bold text-lg text-primary">Wk 1-2: Full Lead Saturation & Discovery</h3>
+                    <p class="text-sm text-gray-700"><strong>Objective:</strong> Make initial contact with all 100 leads. Gauge interest, collect essential policy data, and schedule/complete the first wave of reviews.</p>
+                    <ul class="list-disc list-inside text-sm text-gray-600 mt-2 ml-4 space-y-1">
+                        <li><strong>Activity Goal (Total):</strong> 400 Dials (200/wk or 40/day).</li>
+                        <li><strong>Conversation Goal (Total):</strong> 100 Live Conversations (50/wk).</li>
+                        <li><strong>Review Target (Total):</strong> Secure 20 Policy Reviews (10/wk).</li>
+                        <li><strong>Action Focus:</strong> Heavy Dialing/Qualification. Confirm life events and use the Conversation Starter data.</li>
+                    </ul>
                 </div>
 
-                <!-- ROW 2: ACTIVITY FOCUS -->
-                <div>
-                    <p id="uncontacted-leads" class="text-xl font-bold text-hot">100</p>
-                    <p class="text-xs text-gray-500">Uncontacted</p>
+                <!-- Week 3-4: QUALIFICATION & FIRST CLOSE PUSH -->
+                <div class="timeline-item">
+                    <h3 class="font-bold text-lg text-engaged">Wk 3-4: Qualification, Review Execution, & Pipeline Build</h3>
+                    <p class="text-sm text-gray-700"><strong>Objective:</strong> Finish clearing initial leads and focus follow-up on 'Contacted' leads. Execute scheduled reviews and present initial proposals.</p>
+                    <ul class="list-disc list-inside text-sm text-gray-600 mt-2 ml-4 space-y-1">
+                        <li><strong>Activity Goal (Total):</strong> 300 Dials (150/wk or 30/day).</li>
+                        <li><strong>Conversation Goal (Total):</strong> 80 Live Conversations (40/wk).</li>
+                        <li><strong>Review Target (Total):</strong> Secure 16 Policy Reviews (8/wk).</li>
+                        <li><strong>Action Focus:</strong> Deliver solutions, secure policy documents, and identify decision-makers. Target the first 1-2 closes.</li>
+                    </ul>
                 </div>
-                <!-- Policy Reviews Requested Metric -->
-                <div>
-                    <p id="policy-reviews-requested" class="text-xl font-bold text-blue-700">0</p>
-                    <p class="text-xs text-gray-500">Policy Reviews</p>
+
+                <!-- Week 5-6: SECONDARY CLOSE WAVE -->
+                <div class="timeline-item">
+                    <h3 class="font-bold text-lg text-secondary">Wk 5-6: Sustained Review & Closing Momentum</h3>
+                    <p class="text-sm text-gray-700"><strong>Objective:</strong> Nurture leads that needed time or had objections. Re-approach leads who had policy delays. Keep the Review momentum going.</p>
+                    <ul class="list-disc list-inside text-sm text-gray-600 mt-2 ml-4 space-y-1">
+                        <li><strong>Activity Goal (Total):</strong> 200 Dials (100/wk or 20/day).</li>
+                        <li><strong>Conversation Goal (Total):</strong> 60 Live Conversations (30/wk).</li>
+                        <li><strong>Review Target (Total):</strong> Secure 12 Policy Reviews (6/wk).</li>
+                        <li><strong>Action Focus:</strong> Follow-up and objection handling. Focus on closing the next 3-4 deals.</li>
+                    </ul>
                 </div>
-                <div>
-                    <p id="hot-leads" class="text-xl font-bold text-red-700">0</p>
-                    <p class="text-xs text-gray-500">Hot Leads (Appt.)</p>
+
+                <!-- Week 7-8: FINAL SPRINT & GOAL EXECUTION -->
+                <div class="timeline-item">
+                    <h3 class="font-bold text-lg text-hot">Wk 7-8: Final Sprint & Goal Execution</h3>
+                    <p class="text-sm text-gray-700"><strong>Objective:</strong> Close the final 4-5 deals needed to hit (and exceed) the $80,000 target. Aggressive follow-up on all remaining pending quotes and reviews.</p>
+                    <ul class="list-disc list-inside text-sm text-gray-600 mt-2 ml-4 space-y-1">
+                        <li><strong>Activity Goal (Total):</strong> 150 Dials (75/wk or 15/day).</li>
+                        <li><strong>Conversation Goal (Total):</strong> 40 Live Conversations (20/wk).</li>
+                        <li><strong>Review Target (Total):</strong> Secure 8 Policy Reviews (4/wk).</li>
+                        <li><strong>Action Focus:</strong> Urgency reminders and prioritizing 'Appointment Set' leads. Ask for 3-5 referrals from every client.</li>
+                    </ul>
                 </div>
+                
+                <div class="timeline-item bg-gray-100 p-3 rounded-md mt-6 border border-gray-300">
+                    <h3 class="font-bold text-lg text-gray-800">Total 8-Week Goal Summary</h3>
+                    <p class="text-sm text-gray-700">To hit $80k (8 closes), your agent needs a <strong>14.3% Review-to-Close rate</strong>. Hitting 10 closes (as targeted above) requires a 17.8% rate. The high review target provides a healthy buffer.</p>
+                    <ul class="list-disc list-inside text-sm text-gray-600 mt-2 ml-4 space-y-1">
+                        <li><strong>Total Dials:</strong> 1,000</li>
+                        <li><strong>Total Live Conversations:</strong> 280 (280% of unique leads)</li>
+                        <li><strong>Total Policy Reviews Target:</strong> 56</li>
+                        <li><strong>Minimum Closes Needed:</strong> 8 ($80,000)</li>
+                    </ul>
+                </div>
+
             </div>
         </div>
     </div>
 
-    <!-- Leads Management Table -->
-    <div class="card p-4 md:p-6">
-        <h2 class="text-2xl font-semibold mb-4 text-gray-700">The 100 Leads</h2>
-        <div class="table-container overflow-x-auto max-h-[60vh]">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50 sticky top-0">
-                    <tr>
-                        <!-- Clickable Header: Lead Name -->
-                        <th onclick="sortTable('name')" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 rounded-tl-lg">Lead <span id="sort-name"></span></th>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                        <!-- Clickable Header: Status -->
-                        <th onclick="sortTable('status')" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Status <span id="sort-status"></span></th>
-                        <!-- Clickable Header: Last Contact -->
-                        <th onclick="sortTable('lastContact')" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">Last Contact <span id="sort-lastContact">▼</span></th>
-                        <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="leads-table-body" class="bg-white divide-y divide-gray-200">
-                    <!-- Lead rows will be injected here -->
-                </tbody>
-            </table>
-        </div>
-        <div id="no-leads" class="hidden text-center py-10 text-gray-500">
-            All leads accounted for! Great work!
-        </div>
-    </div>
 
     <!-- Modal for Logging Call/Updating Status -->
     <div id="log-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center p-4 z-50">
@@ -397,13 +537,34 @@
                 spouseBirthYear: lead.spouseBirthYear || null,
             }));
         }
+        
+        // --- TAB SWITCHING LOGIC (NEW) ---
+        window.switchTab = (targetTab) => {
+            document.getElementById('content-leads').classList.add('hidden');
+            document.getElementById('content-tracking').classList.add('hidden');
+            document.getElementById('tab-leads').classList.remove('active');
+            document.getElementById('tab-tracking').classList.remove('active');
+
+            document.getElementById(`content-${targetTab}`).classList.remove('hidden');
+            document.getElementById(`tab-${targetTab}`).classList.add('active');
+            
+            // Re-render data ONLY if switching back to the Leads tab
+            if (targetTab === 'leads') {
+                 renderData(allLeads);
+            }
+        }
 
         // --- MAIN RENDER LOOP ---
 
         function setupDashboard() {
             document.getElementById('loader').classList.remove('hidden');
             allLeads = checkAndInitializeLeads();
+            
+            // Initial call to render and set metrics
             renderData(allLeads);
+            
+            // Start on the Leads tab
+            switchTab('leads');
             document.getElementById('loader').classList.add('hidden');
         }
 
@@ -466,6 +627,26 @@
             updateMetrics(totalRevenue, dealsClosed, totalConversations, uncontactedLeads, policyReviewsRequested, hotLeads); 
         }
 
+        function updateMetrics(revenue, closed, totalConversations, uncontactedLeads, policyReviewsRequested, hotLeads) {
+            const revenuePct = Math.min(100, (revenue / TARGET_REVENUE) * 100);
+            const dealsNeeded = Math.ceil((TARGET_REVENUE - revenue) / AVERAGE_DEAL_VALUE);
+
+            // Update Goal Card (which is now in the Tracking tab, but elements exist globally)
+            document.getElementById('current-revenue').textContent = formatCurrency(revenue);
+            document.getElementById('progress-bar').style.width = `${revenuePct}%`;
+            document.getElementById('progress-percent').textContent = `${revenuePct.toFixed(1)}% Complete`;
+
+            // Update Key Metrics Card (which is in the Leads tab)
+            document.getElementById('deals-closed').textContent = closed;
+            document.getElementById('deals-needed').textContent = Math.max(0, dealsNeeded);
+            
+            document.getElementById('total-conversations').textContent = totalConversations; 
+            
+            document.getElementById('uncontacted-leads').textContent = uncontactedLeads;
+            document.getElementById('policy-reviews-requested').textContent = policyReviewsRequested;
+            document.getElementById('hot-leads').textContent = hotLeads;
+        }
+
         // --- SORTING FUNCTIONALITY ---
 
         window.sortTable = (key) => {
@@ -473,7 +654,8 @@
                 sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
             } else {
                 sortConfig.key = key;
-                sortConfig.direction = (key === 'lastContact' || key === 'status') ? 'desc' : 'asc'; 
+                // Default direction for Name is asc, others desc
+                sortConfig.direction = (key === 'name') ? 'asc' : 'desc'; 
             }
             renderLeads(allLeads);
         }
@@ -567,25 +749,6 @@
                 `;
                 tbody.insertAdjacentHTML('beforeend', row);
             });
-        }
-
-        function updateMetrics(revenue, closed, totalConversations, uncontactedLeads, policyReviewsRequested, hotLeads) {
-            const revenuePct = Math.min(100, (revenue / TARGET_REVENUE) * 100);
-            const dealsNeeded = Math.ceil((TARGET_REVENUE - revenue) / AVERAGE_DEAL_VALUE);
-
-            document.getElementById('current-revenue').textContent = formatCurrency(revenue);
-            document.getElementById('progress-bar').style.width = `${revenuePct}%`;
-            document.getElementById('progress-percent').textContent = `${revenuePct.toFixed(1)}% Complete`;
-
-            document.getElementById('deals-closed').textContent = closed;
-            document.getElementById('deals-needed').textContent = Math.max(0, dealsNeeded);
-            
-            document.getElementById('total-conversations').textContent = totalConversations; 
-            
-            // Updated Metrics
-            document.getElementById('uncontacted-leads').textContent = uncontactedLeads;
-            document.getElementById('policy-reviews-requested').textContent = policyReviewsRequested;
-            document.getElementById('hot-leads').textContent = hotLeads;
         }
 
         // --- CALCULATOR LOGIC (UPDATED) ---
